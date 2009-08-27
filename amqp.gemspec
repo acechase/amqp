@@ -78,6 +78,7 @@ spec = Gem::Specification.new do |s|
     "research/api.rb",
     "research/primes-forked.rb",
     "research/primes-processes.rb",
-    "research/primes-threaded.rb"
+    "research/primes-threaded.rb",
+    "bacon/client.rb"
   ]
 end
