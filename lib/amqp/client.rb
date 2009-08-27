@@ -62,7 +62,7 @@ module AMQP
       @settings = opts
       extend AMQP.client
 
-      @on_disconnect ||= proc{ raise Error, "Could not connect to server #{opts[:host]}:#{opts[:port]}" }
+      @on_disconnect ||= method(:disconnected)
 
       timeout @settings[:timeout] if @settings[:timeout]
       errback{ @on_disconnect.call } unless @reconnecting
@@ -76,7 +76,6 @@ module AMQP
       # @on_disconnect = proc{ raise Error, 'Disconnected from server' }
       unless @closing
         @on_disconnect = method(:disconnected)
-        @reconnecting = false
       end
 
       @connected = true
@@ -165,7 +164,7 @@ module AMQP
     def reconnect force = false
       if @reconnecting and not force
         # wait 1 second after first reconnect attempt, in between each subsequent attempt
-        EM.add_timer(1){ reconnect(true) }
+        EM.add_timer(@settings[:reconnect_timer] || 1){ reconnect(true) }
         return
       end
 
@@ -181,7 +180,24 @@ module AMQP
       end
 
       log 'reconnecting'
-      EM.reconnect @settings[:host], @settings[:port], self
+      (try_host, try_port) = determine_reconnect_server
+      EM.reconnect try_host, try_port, self
+    end
+    
+    def determine_reconnect_server
+      try_host = @settings[:host]
+      try_port = @settings[:port]
+      @retry_count ||= 0
+      @retry_count += 1
+      if srv_list = @settings[:fallback_servers]
+        idex = @retry_count % (srv_list.size + 1)
+        if idex != 0
+          try = srv_list[idex - 1]
+          try_host = try[:host] || AMQP.settings[:host]
+          try_port = try[:port] || AMQP.settings[:port]
+        end
+      end
+      [try_host, try_port]
     end
 
     def self.connect opts = {}

@@ -13,3 +13,4 @@ end
 
 task :pkg => :gem
 task :package => :gem
+task :default => :spec

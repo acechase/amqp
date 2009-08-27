@@ -113,3 +113,9 @@ module AMQP
     end
   end
 end
+
+if $0 =~ /bacon/ or $0 == __FILE__
+  require 'bacon'
+  
+  Dir.glob("#{File.dirname(__FILE__)}/../bacon/*.rb").each { |f| require f }
+end
