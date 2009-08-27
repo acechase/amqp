@@ -180,16 +180,20 @@ module AMQP
       end
 
       log 'reconnecting'
-      (try_host, try_port) = determine_reconnect_server
-      EM.reconnect try_host, try_port, self
+      begin
+        (try_host, try_port) = Client.determine_reconnect_server(@settings)
+        EM.reconnect try_host, try_port, self
+      rescue RuntimeError => e
+        return reconnect if e.message == "no connection"
+        raise e
+      end
     end
     
-    def determine_reconnect_server
-      try_host = @settings[:host]
-      try_port = @settings[:port]
+    def self.determine_reconnect_server(opts)
+      try_host = opts[:host]
+      try_port = opts[:port]
       @retry_count ||= 0
-      @retry_count += 1
-      if srv_list = @settings[:fallback_servers]
+      if srv_list = opts[:fallback_servers]
         idex = @retry_count % (srv_list.size + 1)
         if idex != 0
           try = srv_list[idex - 1]
@@ -197,12 +201,20 @@ module AMQP
           try_port = try[:port] || AMQP.settings[:port]
         end
       end
+      @retry_count += 1
       [try_host, try_port]
     end
 
     def self.connect opts = {}
       opts = AMQP.settings.merge(opts)
-      EM.connect opts[:host], opts[:port], self, opts
+      max_retry = ((opts[:fallback_servers] || []).size + 1) * 3
+      begin
+        (try_host, try_port) = determine_reconnect_server(opts)
+        EM.connect try_host, try_port, self, opts
+      rescue RuntimeError => e
+        retry if e.message == "no connection" && @retry_count < max_retry
+        raise e
+      end
     end
 
     def connection_status &blk
