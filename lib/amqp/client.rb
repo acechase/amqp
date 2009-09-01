@@ -35,6 +35,16 @@ module AMQP
         when Protocol::Connection::OpenOk
           succeed(self)
 
+        when Protocol::Connection::Redirect
+          (redir_host, redir_port) = method.host.split(":")
+          redir_port = redir_port.to_i #important!
+          STDERR.puts "Redirecting to #{redir_host}:#{redir_port}"
+          old_on_disconnect = @on_disconnect
+          @on_disconnect = Proc.new do
+            @on_disconnect = old_on_disconnect
+            reconnect true, redir_host, redir_port
+          end
+          
         when Protocol::Connection::Close
           # raise Error, "#{method.reply_text} in #{Protocol.classes[method.class_id].methods[method.method_id]}"
           STDERR.puts "#{method.reply_text} in #{Protocol.classes[method.class_id].methods[method.method_id]}"
@@ -161,7 +171,7 @@ module AMQP
       }
     end
 
-    def reconnect force = false
+    def reconnect force = false, use_host = nil, use_port = nil
       if @reconnecting and not force
         # wait 1 second after first reconnect attempt, in between each subsequent attempt
         EM.add_timer(@settings[:reconnect_timer] || 1){ reconnect(true) }
@@ -181,9 +191,15 @@ module AMQP
 
       log 'reconnecting'
       begin
-        (try_host, try_port) = Client.determine_reconnect_server(@settings)
+        if use_host && use_port
+          (try_host, try_port) = [use_host, use_port]
+        else
+          (try_host, try_port) = Client.determine_reconnect_server(@settings)
+          STDERR.puts "Reconnecting to #{try_host}:#{try_port}"          
+        end
         EM.reconnect try_host, try_port, self
       rescue RuntimeError => e
+        STDERR.puts "'#{e.message}' on reconnect to #{try_host}:#{try_port}"
         return reconnect if e.message == "no connection"
         raise e
       end
@@ -212,6 +228,7 @@ module AMQP
         (try_host, try_port) = determine_reconnect_server(opts)
         EM.connect try_host, try_port, self, opts
       rescue RuntimeError => e
+        STDERR.puts "'#{e.message}' on connect to #{try_host}:#{try_port}"
         retry if e.message == "no connection" && @retry_count < max_retry
         raise e
       end

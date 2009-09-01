@@ -197,4 +197,37 @@ describe Client do
       ["nonexistanthost", 5672], ["alsononexistant", 5672]]
   end
   
+  should "handle redirect requests" do
+    EventMachine.stubs(:connect_server).returns(99).with do |arg1, arg2| 
+      EM.next_tick do
+        @client = EM.class_eval{ @conns }[99]
+        @client.stubs(:send_data).returns(true)
+        @client.connection_completed
+        payload = AMQP::Protocol::Connection::Redirect.new(
+                        :known_hosts => "nonexistanthost:5672,otherhost:5672",
+                        :host => 'otherhost:5672')
+        meth = AMQP::Frame::Method.new
+        meth.payload = payload
+        @client.process_frame meth
+        EM.next_tick do
+          EM.class_eval{ @conns.delete(99) }
+          @client.unbind
+        end
+      end
+      true
+    end
+    
+    @re_connect_args = []
+    EventMachine.stubs(:reconnect).returns(true).with do |arg1, arg2| 
+      @re_connect_args << [arg1, arg2]
+    end
+    
+    EM.next_tick{ EM.add_timer(0.5){ EM.stop_event_loop } }
+    
+    AMQP.start(:host => 'nonexistanthost', :reconnect_timer => 0.1)
+    
+    @re_connect_args.should == [["otherhost", 5672]]
+  end
+  
+  
 end
