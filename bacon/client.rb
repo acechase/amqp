@@ -276,6 +276,20 @@ describe Client do
     # puts "\nreconnected #{@times_connected} times"
     @times_connected.should > 7
   end
+
+  should "give EM return value to AMQP reference @conn" do
+    EventMachine.stubs(:connect_server).returns(99).with do |arg1, arg2| 
+      EM.next_tick do
+        @client = EM.class_eval{ @conns }[99]
+        @amqp_conn = AMQP.class_eval{ @conn }
+        @client.stubs(:send_data).returns(true)
+      end
+      true
+    end    
+    EM.next_tick{ EM.add_timer(0.1){ EM.stop_event_loop } }
+    AMQP.start(:host => 'nonexistanthost')    
+    @amqp_conn.should == @client
+  end
   
   
 end

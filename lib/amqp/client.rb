@@ -236,8 +236,9 @@ module AMQP
       max_retry = ((opts[:fallback_servers] || []).size + 1) * 3
       begin
         (try_host, try_port) = determine_reconnect_server(opts)
-        EM.connect try_host, try_port, self, opts
+        result = EM.connect try_host, try_port, self, opts
         connection_succeeded!
+        return result
       rescue RuntimeError => e
         STDERR.puts "'#{e.message}' on connect to #{try_host}:#{try_port}"
         retry if e.message == "no connection" && @retry_count < max_retry
