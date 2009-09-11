@@ -13,6 +13,7 @@ describe Client do
     AMQP.instance_eval{ @conn = nil }
     AMQP.instance_eval{ @closing = false }
     Client.class_eval{ @retry_count = 0 }
+    Client.class_eval{ @server_to_select = 0 }
   end
   
   should 'reconnect on disconnect after connection_completed (use reconnect_timer)' do
@@ -227,6 +228,53 @@ describe Client do
     AMQP.start(:host => 'nonexistanthost', :reconnect_timer => 0.1)
     
     @re_connect_args.should == [["otherhost", 5672]]
+  end
+  
+  should "respect max_retry if the disconnect happens before connection completes" do
+    @times_connected = 0
+  
+    EventMachine.stubs(:connect_server).returns(99).with do |arg1, arg2| 
+      @times_connected += 1
+      EM.next_tick do
+        @client = EM.class_eval{ @conns }[99]
+        @client.stubs(:send_data).returns(true)
+        EM.class_eval{ @conns.delete(99) }
+        @client.unbind
+      end
+      true
+    end
+    
+    EM.next_tick{ EM.add_timer(0.5){ EM.stop_event_loop } }
+    
+    #connect
+    lambda{
+      AMQP.start(:host => 'nonexistanthost', :reconnect_timer => 0.01, :max_retry => 6)
+    }.should.raise(RuntimeError)
+    # puts "\nreconnected #{@times_connected} times"
+    @times_connected.should == 7
+  end
+  
+  should "reset connection count if the disconnect happens after connection completes" do
+    @times_connected = 0
+  
+    EventMachine.stubs(:connect_server).returns(99).with do |arg1, arg2| 
+      @times_connected += 1
+      EM.next_tick do
+        @client = EM.class_eval{ @conns }[99]
+        @client.stubs(:send_data).returns(true)
+        @client.connection_completed
+        EM.class_eval{ @conns.delete(99) }
+        @client.unbind
+      end
+      true
+    end
+    
+    EM.next_tick{ EM.add_timer(0.5){ EM.stop_event_loop } }
+    
+    #connect
+    AMQP.start(:host => 'nonexistanthost', :reconnect_timer => 0.01, :max_retry => 6)      
+    # puts "\nreconnected #{@times_connected} times"
+    @times_connected.should > 7
   end
   
   

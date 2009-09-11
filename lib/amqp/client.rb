@@ -85,6 +85,7 @@ module AMQP
       log 'connected'
       # @on_disconnect = proc{ raise Error, 'Disconnected from server' }
       unless @closing
+        Client.connection_succeeded!
         @on_disconnect = method(:disconnected)
       end
 
@@ -209,16 +210,25 @@ module AMQP
       try_host = opts[:host]
       try_port = opts[:port]
       @retry_count ||= 0
+      if opts[:max_retry] && @retry_count >= opts[:max_retry]
+        raise "max_retry (#{@retry_count}) reached, disconnecting"
+      end
       if srv_list = opts[:fallback_servers]
-        idex = @retry_count % (srv_list.size + 1)
+        @server_to_select ||= 0
+        idex = @server_to_select % (srv_list.size + 1)
         if idex != 0
           try = srv_list[idex - 1]
           try_host = try[:host] || AMQP.settings[:host]
           try_port = try[:port] || AMQP.settings[:port]
         end
-      end
+        @server_to_select += 1
+      end      
       @retry_count += 1
       [try_host, try_port]
+    end
+    
+    def self.connection_succeeded!
+      @retry_count = 0
     end
 
     def self.connect opts = {}
@@ -227,6 +237,7 @@ module AMQP
       begin
         (try_host, try_port) = determine_reconnect_server(opts)
         EM.connect try_host, try_port, self, opts
+        connection_succeeded!
       rescue RuntimeError => e
         STDERR.puts "'#{e.message}' on connect to #{try_host}:#{try_port}"
         retry if e.message == "no connection" && @retry_count < max_retry
