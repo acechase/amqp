@@ -18,3 +18,5 @@ desc "Synonym for gem"
 task :pkg => :gem
 desc "Synonym for gem"
 task :package => :gem
+
+task :default => :spec
