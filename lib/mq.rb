@@ -1,8 +1,9 @@
 #:main: README
 #
 
-$:.unshift File.expand_path(File.dirname(File.expand_path(__FILE__)))
-require 'amqp'
+# If we are required directly, make sure we load our own copy of amqp.
+library_root = File.expand_path("..", __FILE__)
+require  File.join(library_root, 'amqp')
 
 class MQ
   %w[ exchange queue rpc header ].each do |file|
