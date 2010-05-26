@@ -8,10 +8,11 @@ unless defined?(EM)
 end
 
 library_root = File.expand_path("..", __FILE__)
-require File.join(library_root, "ext", "emfork")
-require File.join(library_root, "ext", "blankslate")
+$LOAD_PATH << library_root unless $LOAD_PATH.include?(library_root)
+require 'ext/emfork'
+require 'ext/blankslate'
 %w[ version buffer spec protocol frame client ].each do |file|
-  require File.join(library_root, "amqp", file)
+  require "amqp/#{file}"
 end
 
 module AMQP

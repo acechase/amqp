@@ -1,5 +1,5 @@
-require File.expand_path('../spec', __FILE__)
-require File.expand_path('../buffer', __FILE__)
+require 'amqp/spec'
+require 'amqp/buffer'
 
 module AMQP
   module Protocol
@@ -8,9 +8,9 @@ module AMQP
       def initialize *args
         opts = args.pop if args.last.is_a? Hash
         opts ||= {}
-        
+
         @debug = 1 # XXX hack, p(obj) == '' if no instance vars are set
-        
+
         if args.size == 1 and args.first.is_a? Buffer
           buf = args.shift
         else
