@@ -61,7 +61,6 @@ spec = Gem::Specification.new do |s|
     "lib/amqp/server.rb",
     "lib/amqp/spec.rb",
     "lib/ext/blankslate.rb",
-    "lib/ext/em.rb",
     "lib/ext/emfork.rb",
     "lib/mq.rb",
     "lib/mq/exchange.rb",
