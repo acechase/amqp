@@ -1,6 +1,4 @@
-unless defined?(AMQP::VERSION)
-  require File.expand_path('../lib/amqp/version', __FILE__)
-end
+require File.expand_path('../lib/amqp/version', __FILE__)
 
 spec = Gem::Specification.new do |s|
   s.name = 'amqp'

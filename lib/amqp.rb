@@ -11,6 +11,7 @@ library_root = File.expand_path("..", __FILE__)
 $LOAD_PATH << library_root unless $LOAD_PATH.include?(library_root)
 require 'ext/emfork'
 require 'ext/blankslate'
+
 %w[ version buffer spec protocol frame client ].each do |file|
   require "amqp/#{file}"
 end
