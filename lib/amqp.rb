@@ -1,8 +1,19 @@
-require File.expand_path('../ext/em', __FILE__)
-require File.expand_path('../ext/blankslate', __FILE__)
-  
+unless defined?(EM)
+  begin
+    require 'eventmachine'
+  rescue LoadError
+    require 'rubygems'
+    require 'eventmachine'
+  end
+end
+
+library_root = File.expand_path("..", __FILE__)
+$LOAD_PATH << library_root unless $LOAD_PATH.include?(library_root)
+require 'ext/emfork'
+require 'ext/blankslate'
+
 %w[ version buffer spec protocol frame client ].each do |file|
-  require File.expand_path("../amqp/#{file}", __FILE__)
+  require "amqp/#{file}"
 end
 
 module AMQP
@@ -76,7 +87,7 @@ module AMQP
   # block. See the code examples in MQ for details.
   #
   def self.start *args, &blk
-    EM.run{
+    EM.run {
       @conn ||= connect *args
       @conn.callback(&blk) if blk
       @conn
@@ -86,11 +97,11 @@ module AMQP
   class << self
     alias :run :start
   end
-  
+
   def self.stop
     if @conn and not @closing
       @closing = true
-      @conn.close{
+      @conn.close {
         yield if block_given?
         @conn = nil
         @closing = false
