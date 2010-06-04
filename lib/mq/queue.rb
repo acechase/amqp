@@ -113,7 +113,7 @@ class MQ
       @mq.callback{
         @mq.send Protocol::Queue::Bind.new({ :queue => name,
                                              :exchange => exchange,
-                                             :routing_key => opts.delete(:key),
+                                             :routing_key => opts[:key],
                                              :nowait => true }.merge(opts))
       }
       self
@@ -140,7 +140,7 @@ class MQ
       @mq.callback{
         @mq.send Protocol::Queue::Unbind.new({ :queue => name,
                                                :exchange => exchange,
-                                               :routing_key => opts.delete(:key),
+                                               :routing_key => opts[:key],
                                                :nowait => true }.merge(opts))
       }
       self
@@ -172,6 +172,16 @@ class MQ
                                                :nowait => true }.merge(opts))
       }
       @mq.queues.delete @name
+      nil
+    end
+
+    # Purge all messages from the queue.
+    #
+    def purge opts = {}
+      @mq.callback{
+        @mq.send Protocol::Queue::Purge.new({ :queue => name,
+                                              :nowait => true }.merge(opts))
+      }
       nil
     end
 
@@ -240,7 +250,7 @@ class MQ
           q.push(self)
           @mq.send Protocol::Basic::Get.new({ :queue => name,
                                               :consumer_tag => name,
-                                              :no_ack => !opts.delete(:ack),
+                                              :no_ack => !opts[:ack],
                                               :nowait => true }.merge(opts))
         }
       }
@@ -296,6 +306,12 @@ class MQ
     # not wait for a reply method.  If the server could not complete the
     # method it will raise a channel or connection exception.
     #
+    # * :confirm => proc (default nil)
+    # If set, this proc will be called when the server confirms subscription
+    # to the queue with a ConsumeOk message. Setting this option will
+    # automatically set :nowait => false. This is required for the server
+    # to send a confirmation.
+    #
     def subscribe opts = {}, &blk
       @consumer_tag = "#{name}-#{Kernel.rand(999_999_999_999)}"
       @mq.consumers[@consumer_tag] = self
@@ -304,11 +320,12 @@ class MQ
 
       @on_msg = blk
       @on_msg_opts = opts
+      opts[:nowait] = false if (@on_confirm_subscribe = opts[:confirm])
 
       @mq.callback{
         @mq.send Protocol::Basic::Consume.new({ :queue => name,
                                                 :consumer_tag => @consumer_tag,
-                                                :no_ack => !opts.delete(:ack),
+                                                :no_ack => !opts[:ack],
                                                 :nowait => true }.merge(opts))
       }
       self
@@ -336,7 +353,6 @@ class MQ
     # method it will raise a channel or connection exception.
     #
     def unsubscribe opts = {}, &blk
-      @on_msg = nil
       @on_cancel = blk
       @mq.callback{
         @mq.send Protocol::Basic::Cancel.new({ :consumer_tag => @consumer_tag }.merge(opts))
@@ -391,7 +407,7 @@ class MQ
       self
     end
 
-    def recieve_status declare_ok
+    def receive_status declare_ok
       if @on_status
         m, c = declare_ok.message_count, declare_ok.consumer_count
         @on_status.call *(@on_status.arity == 1 ? [m] : [m, c])
@@ -399,10 +415,16 @@ class MQ
       end
     end
 
+    def confirm_subscribe
+      @on_confirm_subscribe.call if @on_confirm_subscribe
+      @on_confirm_subscribe = nil
+    end
+
     def cancelled
       @on_cancel.call if @on_cancel
       @on_cancel = @on_msg = nil
       @mq.consumers.delete @consumer_tag
+      @mq.queues.delete(@name) if @opts[:auto_delete]
       @consumer_tag = nil
     end
 

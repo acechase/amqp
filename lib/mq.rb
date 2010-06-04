@@ -199,7 +199,7 @@ class MQ
         end
 
       when Protocol::Queue::DeclareOk
-        queues[ method.queue ].recieve_status method
+        queues[ method.queue ].receive_status method
 
       when Protocol::Basic::Deliver, Protocol::Basic::GetOk
         @method = method
@@ -230,6 +230,13 @@ class MQ
           c.channels.delete @channel
           c.close if c.channels.empty?
         }
+
+      when Protocol::Basic::ConsumeOk
+        if @consumer = consumers[ method.consumer_tag ]
+          @consumer.confirm_subscribe
+        else
+          MQ.error "Basic.ConsumeOk for invalid consumer tag: #{method.consumer_tag}"
+        end
       end
     end
   end
@@ -733,7 +740,22 @@ class MQ
   end
 
   def prefetch(size)
+    @prefetch_size = size
     send Protocol::Basic::Qos.new(:prefetch_size => 0, :prefetch_count => size, :global => false)
+    self
+  end
+
+  # Asks the broker to redeliver all unacknowledged messages on this
+  # channel.
+  #
+  # * requeue (default false)
+  # If this parameter is false, the message will be redelivered to the original recipient.
+  # If this flag is true, the server will attempt to requeue the message, potentially then
+  # delivering it to an alternative subscriber.
+  #
+  def recover requeue = false
+    send Protocol::Basic::Recover.new(:requeue => requeue)
+    self
   end
 
   # Returns a hash of all the exchange proxy objects.
@@ -786,6 +808,8 @@ class MQ
     qus = @queues
     @queues = {}
     qus.each{ |_,q| q.reset } if qus
+
+    prefetch(@prefetch_size) if @prefetch_size
   end
 
   private
