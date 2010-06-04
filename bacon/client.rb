@@ -1,5 +1,7 @@
 # this is the bacon spec for AMQP client
 # you can find other specs inline in frame.rb, buffer.rb and protocol.rb
+# to run just 1 test use:
+# bacon lib/amqp.rb --name "should ..."
 # this one couldn't be written in line because:
 # due to the load order 'AMQP' isn't completely defined yet when Client is loaded
 require 'mocha'
@@ -14,6 +16,7 @@ describe Client do
     AMQP.instance_eval{ @closing = false }
     Client.class_eval{ @retry_count = 0 }
     Client.class_eval{ @server_to_select = 0 }
+    EM.instance_eval{ @next_tick_queue = nil }
   end
   
   should 'reconnect on disconnect after connection_completed (use reconnect_timer)' do
@@ -71,7 +74,7 @@ describe Client do
     end
   end
   
-  should "use fallback servers on reconnect" do
+  should "use fallback servers on reconnect without connection_completed" do
     @times_connected = 0
     @connect_args = []
 
