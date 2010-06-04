@@ -5,6 +5,6 @@
 # so we can't use a relative require there.
 unless defined?(::AMQP::VERSION)
   module AMQP
-    VERSION = '0.6.7'
+    VERSION = '0.6.7.1'
   end
 end
