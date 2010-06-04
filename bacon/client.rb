@@ -294,5 +294,24 @@ describe Client do
     @amqp_conn.should == @client
   end
   
+  should "send Heartbeat frames based on keepalive interval" do
+    @stuff_sent = []
+    EventMachine.stubs(:connect_server).returns(99).with do |arg1, arg2| 
+      EM.next_tick do
+        @client = EM.class_eval{ @conns }[99]
+        @amqp_conn = AMQP.class_eval{ @conn }
+        @client.stubs(:send).returns(true).with do |what_to_send|
+          @stuff_sent << what_to_send.class
+          true
+        end
+        @client.connection_completed
+      end
+      true
+    end
+    EM.next_tick{ EM.add_timer(0.5){ EM.stop_event_loop } }
+    AMQP.start(:host => 'nonexistanthost', :keepalive => 0.2)
+    @stuff_sent.should == [AMQP::Frame::Heartbeat, AMQP::Frame::Heartbeat]
+  end
+  
   
 end

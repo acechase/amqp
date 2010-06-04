@@ -95,6 +95,12 @@ module AMQP
       @buf = Buffer.new
       send_data HEADER
       send_data [1, 1, VERSION_MAJOR, VERSION_MINOR].pack('C4')
+      
+      if @settings[:keepalive]
+        EM.add_periodic_timer(@settings[:keepalive]) do
+          send Frame::Heartbeat.new
+        end
+      end
     end
 
     def connected?
